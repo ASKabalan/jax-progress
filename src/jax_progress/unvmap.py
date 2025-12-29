@@ -1,9 +1,11 @@
+from functools import partial
+
 import jax
 import jax.numpy as jnp
-from jax.custom_batching import custom_vmap
 from jax import lax
 from jax._src.dtypes import float0
-from functools import partial
+from jax.custom_batching import custom_vmap
+
 
 @jax.custom_jvp
 @custom_vmap
@@ -28,22 +30,24 @@ def unvmap_size(x):
         >>> jax.vmap(lambda x: unvmap_size(x))(jnp.arange(10.))  # Inside vmap
         Array([10, 10, 10, 10, 10, 10, 10, 10, 10, 10], dtype=int32)
     """
-    return jnp.array(1 , dtype=jnp.int32)
+    return jnp.array(1, dtype=jnp.int32)
+
 
 @unvmap_size.def_vmap
 def _unvmap_size_vmap_rule(axis_size, in_batched, x):
     out_batched = False
-    return jnp.array(axis_size , dtype=jnp.int32) , out_batched
+    return jnp.array(axis_size, dtype=jnp.int32), out_batched
+
 
 @unvmap_size.defjvp
 def _unvmap_size_jvp(primals, tangents):
-    x, = primals
+    (x,) = primals
     y = unvmap_size(x)
     return y, jnp.zeros((), dtype=float0)
 
 
-@partial(jax.jit , static_argnames=['nb'])
-def unvmap_min(x , nb=1):
+@partial(jax.jit, static_argnames=["nb"])
+def unvmap_min(x, nb=1):
     """Get the top-nb minimum values from a vmapped array.
 
     Outside of vmap, returns [full(nb, x), zeros(nb)] where x is repeated nb times.
@@ -73,27 +77,26 @@ def unvmap_min(x , nb=1):
     def _unvmap_min_impl(x):
         if not jnp.isscalar(x):
             raise ValueError("Input must be a scalar.")
-        return [jnp.full(nb , x) , jnp.zeros(nb, dtype=jnp.int32)]
+        return [jnp.full(nb, x), jnp.zeros(nb, dtype=jnp.int32)]
 
     @_unvmap_min_impl.def_vmap
     def _unvmap_min_vmap_rule(axis_size, in_batched, x):
         assert in_batched[0]
         assert x.shape[0] == axis_size
         out_batched = False
-        return lax.approx_min_k(x , k=nb) , [out_batched , out_batched]
-
+        return lax.approx_min_k(x, k=nb), [out_batched, out_batched]
 
     @_unvmap_min_impl.defjvp
     def _jvp(primals, tangents):
-        x, = primals
+        (x,) = primals
         y = _unvmap_min_impl(x)
-        return y, [jnp.zeros_like(y[0]) , jnp.zeros((nb,), dtype=float0)]
+        return y, [jnp.zeros_like(y[0]), jnp.zeros((nb,), dtype=float0)]
 
     return _unvmap_min_impl(x)
 
 
-@partial(jax.jit , static_argnames=['nb'])
-def unvmap_max(x , nb=1):
+@partial(jax.jit, static_argnames=["nb"])
+def unvmap_max(x, nb=1):
     """Get the top-nb maximum values from a vmapped array.
 
     Outside of vmap, returns [full(nb, x), zeros(nb)] where x is repeated nb times.
@@ -123,26 +126,26 @@ def unvmap_max(x , nb=1):
     def _unvmap_max_impl(x):
         if not jnp.isscalar(x):
             raise ValueError("Input must be a scalar.")
-        return [jnp.full(nb , x) , jnp.zeros(nb, dtype=jnp.int32)]
+        return [jnp.full(nb, x), jnp.zeros(nb, dtype=jnp.int32)]
 
     @_unvmap_max_impl.def_vmap
     def _unvmap_max_vmap_rule(axis_size, in_batched, x):
         assert in_batched[0]
         assert x.shape[0] == axis_size
         out_batched = False
-        return lax.approx_max_k(x , k=nb) , [out_batched , out_batched]
+        return lax.approx_max_k(x, k=nb), [out_batched, out_batched]
 
     @_unvmap_max_impl.defjvp
     def _jvp(primals, tangents):
-        x, = primals
+        (x,) = primals
         y = _unvmap_max_impl(x)
-        return y, [jnp.zeros_like(y[0]) , jnp.zeros((nb,), dtype=float0)]
+        return y, [jnp.zeros_like(y[0]), jnp.zeros((nb,), dtype=float0)]
 
     return _unvmap_max_impl(x)
 
 
-@partial(jax.jit , static_argnames=['nb'])
-def unvmap_iota(x , nb=None):
+@partial(jax.jit, static_argnames=["nb"])
+def unvmap_iota(x, nb=None):
     """Get the index of each element in a vmapped computation.
 
     Returns 0 when called outside of a vmap context. Inside vmap, returns an array
@@ -177,25 +180,23 @@ def unvmap_iota(x , nb=None):
     @jax.custom_jvp
     @custom_vmap
     def _unvmap_iota_impl(x):
-        return jnp.array(0 , dtype=jnp.int32)
+        return jnp.array(0, dtype=jnp.int32)
 
     @_unvmap_iota_impl.def_vmap
     def _unvmap_iota_vmap_rule(axis_size, in_batched, x):
         out_batched = True
         if nb is None or axis_size <= nb:
-            return jnp.arange(axis_size , dtype=jnp.int32) , out_batched
+            return jnp.arange(axis_size, dtype=jnp.int32), out_batched
         else:
             indices = jnp.where(
-                jnp.arange(axis_size) < nb,
-                jnp.arange(axis_size, dtype=jnp.int32),
-                jnp.array(-1, dtype=jnp.int32)
+                jnp.arange(axis_size) < nb, jnp.arange(axis_size, dtype=jnp.int32), jnp.array(-1, dtype=jnp.int32)
             )
             return indices, out_batched
 
     @_unvmap_iota_impl.defjvp
     def _jvp(primals, tangents):
-        x, = primals
+        (x,) = primals
         y = _unvmap_iota_impl(x)
-        return y, jnp.array(b'' , dtype=float0)
+        return y, jnp.array(b"", dtype=float0)
 
     return _unvmap_iota_impl(x)

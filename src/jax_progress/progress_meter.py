@@ -6,32 +6,33 @@ from typing import Any, Generic, TypeVar
 
 import equinox as eqx
 import jax
+import jax.debug as jdg
 import jax.numpy as jnp
 import numpy as np
-from jax.experimental import io_callback
-from jaxtyping import Array, PyTree, Int, Float
-
-import jax.debug as jdg
-from .unvmap import unvmap_iota, unvmap_size, unvmap_min
-from .unshard import unshard_size, unshard_iota
 from jax import lax
+from jax.experimental import io_callback
+from jaxtyping import Array, Float, Int, PyTree
+
+from .unshard import unshard_iota, unshard_size
+from .unvmap import unvmap_iota, unvmap_size
 
 _State = TypeVar("_State", bound=PyTree[Array])
 
 
 class _TqdmProgressMeterState(eqx.Module):
     """State for TqdmProgressMeter tracking both vmap and shard_map context."""
-    bar_idx: Int[Array, ""]       # Which bar this task uses (for bar management)
-    step_count: Int[Array, ""]    # Number of steps taken (for increment mode)
-    progress: Float[Array, ""]    # Current progress value
+
+    bar_idx: Int[Array, ""]  # Which bar this task uses (for bar management)
+    step_count: Int[Array, ""]  # Number of steps taken (for increment mode)
+    progress: Float[Array, ""]  # Current progress value
 
     # Vmap tracking (for task-level parallelism)
-    v_index: Int[Array, ""]       # Vmap task index (0-indexed)
-    v_size: Int[Array, ""]        # Total vmap tasks (1 if not vmapped)
+    v_index: Int[Array, ""]  # Vmap task index (0-indexed)
+    v_size: Int[Array, ""]  # Total vmap tasks (1 if not vmapped)
 
     # Device tracking (for shard_map parallelism)
-    rank: Int[Array, ""]          # Device rank/index (0-indexed)
-    size: Int[Array, ""]          # Total devices (1 if not sharded)
+    rank: Int[Array, ""]  # Device rank/index (0-indexed)
+    size: Int[Array, ""]  # Total devices (1 if not sharded)
 
 
 def _default_description_callback(state: _TqdmProgressMeterState, args) -> str:
@@ -77,13 +78,14 @@ class _ProgressMeterManager:
 
     def get_counter(self, size) -> Int[Array, ""]:
         """Create a bar using internal counter (diffrax-style)."""
+
         def _init(size):
             with self.lock:
                 old_counter = self.counter
                 self.counter += size
                 return np.array(old_counter, dtype=np.int32)
 
-        meter_idx = io_callback(_init, jax.ShapeDtypeStruct((), jnp.int32) , size)
+        meter_idx = io_callback(_init, jax.ShapeDtypeStruct((), jnp.int32), size)
         return meter_idx
 
     def step(self, state: _TqdmProgressMeterState, description_callback, description_args):
@@ -125,7 +127,7 @@ class _ProgressMeterManager:
                             bar.n = bar.total
                             bar.refresh()
                             bar.close()
-                            del self.bars[idx_val]    
+                            del self.bars[idx_val]
                 else:
                     # Delete all bars
                     for bar in self.bars.values():
@@ -135,7 +137,7 @@ class _ProgressMeterManager:
                             bar.n = bar.total
                             bar.refresh()
                             bar.close()
-                    self.bars.clear()                              
+                    self.bars.clear()
 
         jdg.callback(_host_side, idx)
 
@@ -215,9 +217,9 @@ class NoProgressMeter(AbstractProgressMeter):
             step_count=jnp.array(0, dtype=jnp.int32),
             progress=jnp.array(0.0),
             v_index=jnp.array(0, dtype=jnp.int32),  # 0-indexed
-            v_size=jnp.array(1, dtype=jnp.int32),   # size=1 means not vmapped
-            rank=jnp.array(0, dtype=jnp.int32),     # 0-indexed
-            size=jnp.array(1, dtype=jnp.int32),     # size=1 means not sharded
+            v_size=jnp.array(1, dtype=jnp.int32),  # size=1 means not vmapped
+            rank=jnp.array(0, dtype=jnp.int32),  # 0-indexed
+            size=jnp.array(1, dtype=jnp.int32),  # size=1 means not sharded
         )
 
     def step(self, state: _TqdmProgressMeterState, progress, description_args=None) -> _TqdmProgressMeterState:
@@ -240,13 +242,9 @@ class TqdmProgressMeter(AbstractProgressMeter):
     refresh_steps: int = 20
     total: int = eqx.field(default=100, static=True)
     bar_format: str = eqx.field(
-        default="{desc}: {percentage:.0f}%|{bar}| {n:.01f}/{total:.01f} [{elapsed}<{remaining}]",
-        static=True
+        default="{desc}: {percentage:.0f}%|{bar}| {n:.01f}/{total:.01f} [{elapsed}<{remaining}]", static=True
     )
-    description_callback: Callable[..., str] = eqx.field(
-        default=_default_description_callback,
-        static=True
-    )
+    description_callback: Callable[..., str] = eqx.field(default=_default_description_callback, static=True)
     max_bars: int = eqx.field(default=None, static=True)
     percent_progress: bool = eqx.field(default=False, static=True)
     leave: bool = eqx.field(default=True, static=True)
@@ -254,8 +252,7 @@ class TqdmProgressMeter(AbstractProgressMeter):
     def __check_init__(self):
         if importlib.util.find_spec("tqdm") is None:
             raise ValueError(
-                "Cannot use `TqdmProgressMeter` without `tqdm` installed. "
-                "Install it via `pip install tqdm`."
+                "Cannot use `TqdmProgressMeter` without `tqdm` installed. " "Install it via `pip install tqdm`."
             )
         if self.max_bars is not None and self.max_bars <= 0:
             raise ValueError("max_bars must be a positive integer or None.")
@@ -294,6 +291,7 @@ class TqdmProgressMeter(AbstractProgressMeter):
         # Always use counter for bar assignment
         def _init_bar():
             from tqdm.auto import tqdm
+
             return tqdm(
                 total=float(self.total),
                 bar_format=self.bar_format,
@@ -302,7 +300,7 @@ class TqdmProgressMeter(AbstractProgressMeter):
 
         counter = _progress_meter_manager.get_counter(v_size * size)
         bar_idx = rank + v_index + counter
-        _progress_meter_manager.create_bar(_init_bar , bar_idx)
+        _progress_meter_manager.create_bar(_init_bar, bar_idx)
 
         return _TqdmProgressMeterState(
             bar_idx=bar_idx,
@@ -314,12 +312,7 @@ class TqdmProgressMeter(AbstractProgressMeter):
             size=size,
         )
 
-    def step(
-        self,
-        state: _TqdmProgressMeterState,
-        progress=1,
-        description_args=None
-    ) -> _TqdmProgressMeterState:
+    def step(self, state: _TqdmProgressMeterState, progress=1, description_args=None) -> _TqdmProgressMeterState:
         """Update the progress meter.
 
         **Arguments:**
@@ -356,7 +349,7 @@ class TqdmProgressMeter(AbstractProgressMeter):
         step_fn = jax.tree_util.Partial(
             _progress_meter_manager.step,
             description_callback=self.description_callback,
-            description_args=description_args
+            description_args=description_args,
         )
 
         lax.cond(
@@ -380,7 +373,7 @@ class TqdmProgressMeter(AbstractProgressMeter):
         None.
         """
         # print stack trace for debugging
-        _progress_meter_manager.delete_bar(state.bar_idx , terminate=False)
+        _progress_meter_manager.delete_bar(state.bar_idx, terminate=False)
 
     def terminate(self):
         """Terminate the progress meter.
@@ -393,4 +386,4 @@ class TqdmProgressMeter(AbstractProgressMeter):
 
         None.
         """
-        _progress_meter_manager.delete_bar(None , terminate=True)
+        _progress_meter_manager.delete_bar(None, terminate=True)

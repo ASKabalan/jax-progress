@@ -11,11 +11,11 @@ Functions:
     - unshard_iota: Unique device index assignment
 """
 
-import jax
+from math import prod
+
 import jax.numpy as jnp
 from jax import lax
-from jax.sharding import NamedSharding, Mesh, PartitionSpec as P
-from math import prod
+
 
 def unshard_size(spec):
     """Compute the total number of devices across specified sharding axes.
@@ -39,7 +39,7 @@ def unshard_size(spec):
     return prod([lax.axis_size(axis_name=axis) for axis in spec if axis is not None])
 
 
-def unshard_min(x , spec):
+def unshard_min(x, spec):
     """Compute the global minimum value across sharded devices.
 
     Reduces a sharded value to its minimum across specified mesh axes using
@@ -64,7 +64,8 @@ def unshard_min(x , spec):
             x = lax.pmin(x, axis_name=axis)
     return jnp.min(x)
 
-def unshard_max(x , spec):
+
+def unshard_max(x, spec):
     """Compute the global maximum value across sharded devices.
 
     Reduces a sharded value to its maximum across specified mesh axes using
@@ -88,6 +89,7 @@ def unshard_max(x , spec):
         if axis is not None:
             x = lax.pmax(x, axis_name=axis)
     return jnp.max(x)
+
 
 def unshard_iota(spec):
     """Compute a unique device index based on mesh position.

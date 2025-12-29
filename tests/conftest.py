@@ -1,12 +1,12 @@
-import pytest
 import jax
+import pytest
 
 
-@pytest.fixture(scope='session', autouse=True)
+@pytest.fixture(scope="session", autouse=True)
 def setup_cpu_devices():
     """Configure JAX to use 8 CPU devices for shard_map testing."""
-    jax.config.update('jax_platform_name', 'cpu')
-    jax.config.update('jax_num_cpu_devices', 8)
+    jax.config.update("jax_platform_name", "cpu")
+    jax.config.update("jax_num_cpu_devices", 8)
     yield
 
 

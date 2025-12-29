@@ -5,8 +5,8 @@ from .progress_meter import (
 )
 from .unvmap import (
     unvmap_iota,
-    unvmap_min,
     unvmap_max,
+    unvmap_min,
     unvmap_size,
 )
 

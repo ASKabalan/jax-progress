@@ -29,12 +29,12 @@ def test_vmap_vmap_with_limitation():
 
 def test_shardmap():
     """Basic shard_map test."""
-    mesh = jax.make_mesh((8,), ('x',))
+    mesh = jax.make_mesh((8,), ("x",))
     pbar = TqdmProgressMeter(total=5)
 
-    @partial(jax.shard_map, mesh=mesh, in_specs=P('x'), out_specs=P('x'))
+    @partial(jax.shard_map, mesh=mesh, in_specs=P("x"), out_specs=P("x"))
     def sharded(x):
-        state = pbar.init(spec=P('x'))
+        state = pbar.init(spec=P("x"))
 
         def scan_body(carry, i):
             return pbar.step(carry, progress=1), i
@@ -48,12 +48,12 @@ def test_shardmap():
 
 def test_shardmap_vmap_with_limitation():
     """Combined shard_map + vmap with max_bars."""
-    mesh = jax.make_mesh((4,), ('x',))
+    mesh = jax.make_mesh((4,), ("x",))
     pbar = TqdmProgressMeter(total=5, max_bars=2)
 
-    @partial(jax.shard_map, mesh=mesh, in_specs=(P('x'), P()), out_specs=P('x'))
+    @partial(jax.shard_map, mesh=mesh, in_specs=(P("x"), P()), out_specs=P("x"))
     def sharded(x, task_id):
-        state = pbar.init(vmapped_element=task_id, spec=P('x'))
+        state = pbar.init(vmapped_element=task_id, spec=P("x"))
 
         def scan_body(carry, i):
             return pbar.step(carry, progress=1), i
