@@ -24,6 +24,7 @@ import jax
 import jax.numpy as jnp
 from jax_progress import TqdmProgressMeter
 
+# Limit to 3 progress bars (shows 3 slowest tasks)
 pbar = TqdmProgressMeter(total=100, max_bars=3)
 
 def task(data):
@@ -34,7 +35,7 @@ def task(data):
     pbar.close(state)
     return data.sum()
 
-# Run 10 tasks in parallel, show 3 slowest
+# Run 10 tasks in parallel, but only show 3 slowest
 results = jax.vmap(task)(jnp.ones((10, 100)))
 ```
 
@@ -57,6 +58,25 @@ def sharded_task(data):
     return data
 
 results = sharded_task(jnp.ones(4))
+```
+
+### Diffrax integration (drop-in replacement)
+
+`TqdmProgressMeter` can be used as a drop-in replacement for Diffrax's default progress meter:
+
+```python
+import diffrax
+
+# Create progress meter with percent_progress=True for Diffrax
+pbar = TqdmProgressMeter(total=100, percent_progress=True)
+
+# Use directly in diffeqsolve
+sol = diffrax.diffeqsolve(
+    term, solver, t0=0.0, t1=10.0, dt0=0.01, y0=y0,
+    stepsize_controller=stepsize_controller,
+    progress_meter=pbar  # Drop-in replacement
+)
+pbar.terminate()
 ```
 
 > **Note:** You can combine `vmap` and `shard_map` for multi-level parallelism. See `examples/` directory for more.
